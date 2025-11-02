@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+# ===== Colors =====
+GRAY="\e[1;30m"
+BLUE="\e[1;34m"
+WHITE="\e[1;37m"
+RED="\e[1;31m"
+RESET="\e[0m"
+
+# ===== Check File =====
+logFile=$1
+
+if [ -z "$logFile" ] || [ ! -f "$logFile" ]; then
+    echo -e "${RED}Log file not found or not specified.${RESET}"
+    echo -e "${GRAY}Usage:${RESET} ${WHITE}nginx-log-analyser${RESET} ${BLUE}<nginx-access.log>${RESET}"
+    exit 1
+fi
+
+# ===== Top 5s =====
+top5() {
+    local data="$1"
+    echo "$data" | sort | uniq -c | sort -rn | head -5
+}
+
+top5Ips=$(top5 "$(awk '{print $1}' "$logFile")")
+top5Paths=$(top5 "$(awk -F'"' '{print $2}' "$logFile" | awk '{print $2}')")
+top5Codes=$(top5 "$(awk '{print $9}' "$logFile" | grep -E '^[0-9]{3}$')")
+top5UserAgents=$(top5 "$(awk -F'"' '{print $6}' "$logFile" | cut -c1-37 | sed 's/^\(.\{37\}\).*/\1.../')")
+
+# ===== Display Top 5s =====
+printTop5() {
+    local title=$1
+    local data=$2
+    local label=$3
+
+    echo -e "${BLUE}$title${GRAY}:${RESET}"
+    while read -r requests value; do
+        printf "${WHITE}%-s ${GRAY}- ${WHITE}%s ${GRAY}%s\n${RESET}" "$value" "$requests" "$label"
+    done <<< "$data"
+    echo ""
+}
+
+# ===== Output =====
+printTop5 "Top 5 IP addresses with the most requests" "$top5Ips" "requests"
+printTop5 "Top 5 most requested paths" "$top5Paths" "requests"
+printTop5 "Top 5 response status codes" "$top5Codes" "requests"
+printTop5 "Top 5 user agents" "$top5UserAgents" "requests"
+
+exit 0
